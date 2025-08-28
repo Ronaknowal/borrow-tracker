@@ -22,6 +22,11 @@ const App = () => {
   const [currentView, setCurrentView] = useState<View>('home')
   const [selectedPerson, setSelectedPerson] = useState<PersonWithBalance | null>(null)
   const [showAddPerson, setShowAddPerson] = useState(false)
+  
+  // Debug state changes
+  useEffect(() => {
+    console.log('🔄 showAddPerson state changed to:', showAddPerson)
+  }, [showAddPerson])
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
 
@@ -51,10 +56,19 @@ const App = () => {
 
   const loadGroups = async () => {
     try {
+      console.log('📋 Loading groups...')
       const groupsData = await getGroups()
+      console.log('✅ Groups loaded:', groupsData)
       setGroups(groupsData)
     } catch (error) {
-      console.error('Error loading groups:', error)
+      console.error('❌ Error loading groups:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        if (error.message.includes('Database tables do not exist')) {
+          alert('Database tables do not exist! Please run the database schema setup first. Check the SETUP.md file for instructions.')
+        }
+      }
+      setGroups([])
     }
   }
 
@@ -117,7 +131,13 @@ const App = () => {
         {currentView === 'home' && (
           <HomePage
             onPersonClick={handlePersonClick}
-            onAddPerson={() => setShowAddPerson(true)}
+            onAddPerson={() => {
+              console.log('🚨 ADD PERSON BUTTON CLICKED!')
+              console.log('Current groups:', groups)
+              console.log('About to set showAddPerson to true')
+              setShowAddPerson(true)
+              console.log('✅ setShowAddPerson(true) called')
+            }}
             onAddGroup={() => setShowAddGroup(true)}
           />
         )}
@@ -130,12 +150,17 @@ const App = () => {
           />
         )}
         
-        <AddPersonDialog
-          open={showAddPerson}
-          onOpenChange={setShowAddPerson}
-          groups={groups}
-          onPersonAdded={handlePersonAdded}
-        />
+        {showAddPerson && (
+          <>
+            {console.log('🎯 Rendering AddPersonDialog with showAddPerson =', showAddPerson)}
+            <AddPersonDialog
+              open={showAddPerson}
+              onOpenChange={setShowAddPerson}
+              groups={groups}
+              onPersonAdded={handlePersonAdded}
+            />
+          </>
+        )}
         
         <AddGroupDialog
           open={showAddGroup}

@@ -75,7 +75,20 @@ export default function HomePage({ onPersonClick, onAddPerson, onAddGroup }: Hom
         case 'balance-low':
           return a.balance - b.balance
         case 'last-paid':
-          return new Date(b.last_paid_date || 0).getTime() - new Date(a.last_paid_date || 0).getTime()
+          // Only sort people with balance > 0 (people who still owe money)
+          // People with no balance go to the end
+          if (a.balance <= 0 && b.balance <= 0) return 0
+          if (a.balance <= 0) return 1  // a goes to end
+          if (b.balance <= 0) return -1 // b goes to end
+          
+          // For people with balance, sort by last payment date
+          // People who haven't paid (no last_paid_date) come first
+          // People who paid longest ago come next
+          // People who paid most recently come last
+          const aDate = a.last_paid_date ? new Date(a.last_paid_date).getTime() : 0
+          const bDate = b.last_paid_date ? new Date(b.last_paid_date).getTime() : 0
+          
+          return aDate - bDate // Ascending order (oldest payments first, no payments at very beginning)
         default:
           return 0
       }
@@ -99,51 +112,51 @@ export default function HomePage({ onPersonClick, onAddPerson, onAddGroup }: Hom
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold text-gray-900">Borrow Tracker</h1>
-              <Badge variant="secondary" className="text-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Borrow Tracker</h1>
+              <Badge variant="secondary" className="text-xs sm:text-sm">
                 {people.length} customers
               </Badge>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="px-2 sm:px-3">
+              <LogOut className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Sign Out</span>
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Customers</CardTitle>
+            <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Total Customers</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{people.length}</div>
+            <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold">{people.length}</div>
             </CardContent>
           </Card>
           
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Owed</CardTitle>
+            <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Total Owed</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+            <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-red-600">
                 ₹{totalOwed.toLocaleString('en-IN')}
               </div>
             </CardContent>
           </Card>
           
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Net Balance</CardTitle>
+            <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Net Balance</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+              <div className={`text-xl sm:text-2xl font-bold ${totalBalance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                 ₹{Math.abs(totalBalance).toLocaleString('en-IN')}
               </div>
             </CardContent>
@@ -151,61 +164,64 @@ export default function HomePage({ onPersonClick, onAddPerson, onAddGroup }: Hom
         </div>
 
         {/* Controls */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by name or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by name or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
             
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by group" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Groups</SelectItem>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Filter and Sort - Two columns on mobile, inline on desktop */}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by group" />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  <SelectItem value="all">All Groups</SelectItem>
+                  {groups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  <SelectItem value="name">Name (A-Z)</SelectItem>
+                  <SelectItem value="balance-high">Balance (High-Low)</SelectItem>
+                  <SelectItem value="balance-low">Balance (Low-High)</SelectItem>
+                  <SelectItem value="last-paid">Payment Priority (Needs Payment First)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name (A-Z)</SelectItem>
-                <SelectItem value="balance-high">Balance (High-Low)</SelectItem>
-                <SelectItem value="balance-low">Balance (Low-High)</SelectItem>
-                <SelectItem value="last-paid">Last Paid (Recent)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex gap-2 mt-4">
-            <Button onClick={onAddPerson}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Person
-            </Button>
-            <Button variant="outline" onClick={onAddGroup}>
-              <Users className="h-4 w-4 mr-2" />
-              Add Group
-            </Button>
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <Button onClick={onAddPerson} className="flex-1 sm:flex-initial">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Person
+              </Button>
+              <Button variant="outline" onClick={onAddGroup} className="flex-1 sm:flex-initial">
+                <Users className="h-4 w-4 mr-2" />
+                Add Group
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* People List */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {filteredPeople.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">

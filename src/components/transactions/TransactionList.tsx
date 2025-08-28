@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Edit, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import { Transaction } from '@/types'
+import { deleteTransaction } from '@/lib/database'
+import EditTransactionDialog from '@/components/dialogs/EditTransactionDialog'
 
 interface TransactionListProps {
   transactions: Transaction[]
@@ -10,6 +14,12 @@ interface TransactionListProps {
 }
 
 export default function TransactionList({ transactions, onTransactionUpdated }: TransactionListProps) {
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [loading, setLoading] = useState(false)
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -25,6 +35,40 @@ export default function TransactionList({ transactions, onTransactionUpdated }: 
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
+    setShowEditDialog(true)
+  }
+
+  const handleDelete = (transaction: Transaction) => {
+    setDeletingTransaction(transaction)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deletingTransaction) return
+    
+    setLoading(true)
+    try {
+      await deleteTransaction(deletingTransaction.id)
+      console.log('Transaction deleted successfully')
+      onTransactionUpdated()
+      setShowDeleteDialog(false)
+      setDeletingTransaction(null)
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      alert(`Failed to delete transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTransactionUpdated = () => {
+    onTransactionUpdated()
+    setShowEditDialog(false)
+    setEditingTransaction(null)
   }
 
   const sortedTransactions = [...transactions].sort((a, b) => 
@@ -84,10 +128,27 @@ export default function TransactionList({ transactions, onTransactionUpdated }: 
               </div>
               
               <div className="flex space-x-2">
-                <Button size="sm" variant="ghost">
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleEdit(transaction)
+                  }}
+                  disabled={loading}
+                >
                   <Edit className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="text-red-600 hover:text-red-700"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(transaction)
+                  }}
+                  disabled={loading}
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -95,6 +156,47 @@ export default function TransactionList({ transactions, onTransactionUpdated }: 
           </CardContent>
         </Card>
       ))}
+      
+      {/* Edit Transaction Dialog */}
+      <EditTransactionDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        transaction={editingTransaction}
+        onTransactionUpdated={handleTransactionUpdated}
+      />
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deletingTransaction && (
+            <div className="mt-2 p-3 bg-gray-50 rounded border">
+              <p className="font-medium">
+                <strong>{deletingTransaction.type === 'borrowed' ? 'Borrowed' : 'Paid'}: </strong>
+                {formatCurrency(deletingTransaction.amount)}
+              </p>
+              {deletingTransaction.note && (
+                <p className="text-sm text-gray-600 mt-1">Note: {deletingTransaction.note}</p>
+              )}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              disabled={loading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {loading ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
