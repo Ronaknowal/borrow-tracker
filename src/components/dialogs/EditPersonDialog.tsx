@@ -6,32 +6,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { createPerson, createContact } from '@/lib/database'
-import { Group } from '@/types'
-import { Loader2, X, Upload, User, Plus, Trash2 } from 'lucide-react'
+import { PersonWithBalance, Group } from '@/types'
+import { updatePerson } from '@/lib/database'
+import { Loader2, X, Upload, User } from 'lucide-react'
 
-interface AddPersonDialogProps {
+interface EditPersonDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  person: PersonWithBalance
   groups: Group[]
-  onPersonAdded: () => void
+  onPersonUpdated: () => void
 }
 
-export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAdded }: AddPersonDialogProps) {
-  console.log('✅ AddPersonDialog opened with', groups?.length || 0, 'groups available')
-  
+export default function EditPersonDialog({ 
+  open, 
+  onOpenChange, 
+  person, 
+  groups, 
+  onPersonUpdated 
+}: EditPersonDialogProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    dob: '',
-    address: '',
-    group_id: '',
-    photo: ''
+    name: person.name,
+    dob: person.dob || '',
+    address: person.address || '',
+    group_id: person.group_id || '',
+    photo: person.photo || ''
   })
-  const [phoneNumbers, setPhoneNumbers] = useState([
-    { number: '', tag: 'primary' }
-  ])
   const [loading, setLoading] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(person.photo || null)
+
+  // Reset form when person changes
+  useEffect(() => {
+    setFormData({
+      name: person.name,
+      dob: person.dob || '',
+      address: person.address || '',
+      group_id: person.group_id || '',
+      photo: person.photo || ''
+    })
+    setImagePreview(person.photo || null)
+  }, [person])
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -51,82 +65,48 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
     setFormData({ ...formData, photo: '' })
   }
 
-  const addPhoneNumber = () => {
-    setPhoneNumbers([...phoneNumbers, { number: '', tag: 'secondary' }])
-  }
-
-  const removePhoneNumber = (index: number) => {
-    if (phoneNumbers.length > 1) {
-      setPhoneNumbers(phoneNumbers.filter((_, i) => i !== index))
-    }
-  }
-
-  const updatePhoneNumber = (index: number, field: 'number' | 'tag', value: string) => {
-    const updated = phoneNumbers.map((phone, i) => 
-      i === index ? { ...phone, [field]: value } : phone
-    )
-    setPhoneNumbers(updated)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      console.log('Submitting person data:', formData)
-      console.log('Phone numbers:', phoneNumbers)
+      console.log('Updating person with data:', formData)
       
-      // Create the person first
-      const result = await createPerson({
-        ...formData,
-        group_id: formData.group_id || undefined
-      })
-      
-      console.log('Person created successfully:', result)
-      
-      // Create contacts for phone numbers
-      const validPhoneNumbers = phoneNumbers.filter(phone => phone.number.trim())
-      for (const phone of validPhoneNumbers) {
-        try {
-          await createContact({
-            person_id: result.id,
-            number: phone.number.trim(),
-            tag: phone.tag
-          })
-        } catch (contactError) {
-          console.error('Error creating contact:', contactError)
-          // Continue with other contacts even if one fails
-        }
+      // Create updates object, only including changed fields
+      const updates: any = {}
+      if (formData.name !== person.name) updates.name = formData.name
+      if (formData.dob !== (person.dob || '')) updates.dob = formData.dob || null
+      if (formData.address !== (person.address || '')) updates.address = formData.address || null
+      if (formData.group_id !== (person.group_id || '')) updates.group_id = formData.group_id || null
+      if (formData.photo !== (person.photo || '')) updates.photo = formData.photo || null
+
+      console.log('Updates to apply:', updates)
+
+      if (Object.keys(updates).length > 0) {
+        await updatePerson(person.id, updates)
+        console.log('Person updated successfully')
+      } else {
+        console.log('No changes detected')
       }
       
-      // Reset form
-      setFormData({ name: '', dob: '', address: '', group_id: '', photo: '' })
-      setPhoneNumbers([{ number: '', tag: 'primary' }])
-      setImagePreview(null)
-      onPersonAdded()
+      // Close dialog and trigger refresh
+      onPersonUpdated()
       onOpenChange(false)
     } catch (error) {
-      console.error('Error creating person:', error)
-      alert(`Failed to create person: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Error updating person:', error)
+      alert(`Failed to update person: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
   }
-  
-  if (!open) {
-    return null
-  }
-  
-  // STEP 5: Testing ShadCN Select component - THE MOMENT OF TRUTH!
-  console.log('🔧 RENDERING COMPLETE SHADCN FORM WITH SELECT COMPONENT')
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-3 sm:mx-auto">
         <DialogHeader>
-          <DialogTitle>Add New Person</DialogTitle>
+          <DialogTitle>Edit {person.name}</DialogTitle>
           <DialogDescription>
-            Create a new person profile with their contact information and group assignment.
+            Update the person's profile information, contact details, and group assignment.
           </DialogDescription>
         </DialogHeader>
         
@@ -147,7 +127,7 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => document.getElementById('image-upload')?.click()}
+                    onClick={() => document.getElementById('edit-image-upload')?.click()}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     Upload Image
@@ -165,7 +145,7 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
                   )}
                 </div>
                 <input
-                  id="image-upload"
+                  id="edit-image-upload"
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
@@ -177,72 +157,19 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
+            <Label htmlFor="edit-name">Name *</Label>
             <Input
-              id="name"
+              id="edit-name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
           </div>
-
-          {/* Phone Numbers */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Phone Numbers</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addPhoneNumber}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Phone
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {phoneNumbers.map((phone, index) => (
-                <div key={index} className="flex space-x-2">
-                  <Input
-                    placeholder="Phone number"
-                    value={phone.number}
-                    onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Select 
-                    value={phone.tag} 
-                    onValueChange={(value) => updatePhoneNumber(index, 'tag', value)}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[100]">
-                      <SelectItem value="primary">Primary</SelectItem>
-                      <SelectItem value="secondary">Secondary</SelectItem>
-                      <SelectItem value="home">Home</SelectItem>
-                      <SelectItem value="work">Work</SelectItem>
-                      <SelectItem value="mobile">Mobile</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {phoneNumbers.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removePhoneNumber(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
           
           <div className="space-y-2">
-            <Label htmlFor="dob">Date of Birth</Label>
+            <Label htmlFor="edit-dob">Date of Birth</Label>
             <Input
-              id="dob"
+              id="edit-dob"
               type="date"
               value={formData.dob}
               onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
@@ -250,9 +177,9 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
+            <Label htmlFor="edit-address">Address</Label>
             <Textarea
-              id="address"
+              id="edit-address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               rows={3}
@@ -260,7 +187,7 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="group">Group</Label>
+            <Label htmlFor="edit-group">Group</Label>
             <Select value={formData.group_id || "no-group"} onValueChange={(value) => setFormData({ ...formData, group_id: value === "no-group" ? "" : value })}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a group (optional)" />
@@ -289,7 +216,7 @@ export default function AddPersonDialog({ open, onOpenChange, groups, onPersonAd
               disabled={loading || !formData.name}
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Add Person
+              Save Changes
             </Button>
           </div>
         </form>
